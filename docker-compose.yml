@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: ancora_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: ancora_crm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d ancora_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ancora_backend
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/ancora_crm
+      - SECRET_KEY=b9c4f74d9e52c80327f12e845c48b291
+      - ADMIN_PASSWORD=Ancora2026!
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ancora_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  uploads_data:
