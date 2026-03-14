@@ -1,0 +1,13 @@
+pytest>=8.0
+pytest-asyncio>=0.23
+httpx>=0.27
+asyncpg>=0.29
+pydantic-settings>=2.0
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart
+PyJWT>=2.8
+bcrypt
+google-genai>=1.0
+pytz
+aioredis
