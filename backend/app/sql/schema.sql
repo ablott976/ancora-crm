@@ -70,43 +70,105 @@ CREATE TABLE ancora_crm.invoices (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Seed Data (MUST be included in schema.sql)
+-- Chatbot Tables
 
--- Service Catalog
-INSERT INTO ancora_crm.service_catalog (name, description, default_monthly_price, default_setup_price, category) VALUES
-('Chatbot WhatsApp', 'Chatbot inteligente para WhatsApp Business API con IA', 99.00, 250.00, 'chatbot'),
-('Chatbot Instagram', 'Chatbot inteligente para Instagram Direct', 79.00, 200.00, 'chatbot'),
-('Sistema de Reservas', 'Gestión de reservas con disponibilidad en tiempo real', 49.00, 150.00, 'reservas'),
-('Gestión de Menús', 'Publicación y envío masivo de menús diarios por WhatsApp', 39.00, 100.00, 'menu'),
-('Recordatorios Automáticos', 'Sistema de recordatorios por WhatsApp (citas, reservas)', 29.00, 50.00, 'recordatorios'),
-('Consentimientos Digitales', 'Consentimientos informados digitales con firma electrónica', 39.00, 150.00, 'consentimientos'),
-('Agente de Voz (VAPI)', 'Asistente telefónico con IA para reservas y consultas', 89.00, 300.00, 'voice'),
-('Envío Masivo WhatsApp', 'Campañas y envíos masivos por WhatsApp', 49.00, 100.00, 'marketing');
+CREATE TABLE ancora_crm.chatbot_instances (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL REFERENCES ancora_crm.clients(id),
+    service_type VARCHAR(50) NOT NULL DEFAULT 'chatbot_whatsapp_basic',
+    phone_number_id VARCHAR(50) NOT NULL UNIQUE, -- Meta phone number ID
+    display_phone_number VARCHAR(20), -- The actual phone number displayed
+    whatsapp_access_token TEXT NOT NULL, -- Meta access token for sending messages
+    whatsapp_graph_url VARCHAR(200) DEFAULT 'https://graph.facebook.com/v19.0',
+    google_api_key TEXT, -- Gemini API key (can use shared default)
+    gemini_model VARCHAR(100) DEFAULT 'gemini-2.0-flash',
+    gemini_temperature FLOAT DEFAULT 0.7,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Client: CHILLY'S
-INSERT INTO ancora_crm.clients (name, slug, contact_phone, address, city, business_type, notes, status, dashboard_url, onboarding_date) VALUES
-('CHILLY''S', 'chillys', '910719612', 'Calle de Sta. Ana, 16, 28860 Paracuellos de Jarama', 'Madrid', 'restaurante',
- 'Restaurante-bar. Hamburguesas, tequeños, baos, cócteles. Rating 4.7 (162 reseñas). Terraza, perros OK, tronas. Solo cenas Ma-S 19:00-02:00 (L y D cerrado).',
- 'active', 'https://n8n-chillys-chatbot.9kpuqs.easypanel.host', '2026-03-05');
+CREATE TABLE ancora_crm.chatbot_business_info (
+    id SERIAL PRIMARY KEY,
+    instance_id INTEGER NOT NULL UNIQUE REFERENCES ancora_crm.chatbot_instances(id) ON DELETE CASCADE,
+    business_name VARCHAR(200),
+    business_type VARCHAR(100), -- "restaurante", "clínica", "tattoo studio", etc.
+    description TEXT, -- What the business does
+    address TEXT,
+    city VARCHAR(100),
+    phone VARCHAR(20), -- Public business phone
+    email VARCHAR(200),
+    website VARCHAR(200),
+    services_offered TEXT, -- Free text describing services/prices
+    additional_info TEXT, -- Any extra info for the chatbot
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Client: SEVEN SISTERS TATTOO
-INSERT INTO ancora_crm.clients (name, slug, contact_name, address, city, business_type, notes, status, dashboard_url, onboarding_date) VALUES
-('Seven Sisters Tattoo', 'seven-sisters', 'Raúl', NULL, 'Madrid', 'tattoo_studio',
- 'Estudio de tatuajes. Artista principal: Raúl. Sistema completo: chatbot WA/IG, reservas, recordatorios, consentimientos digitales (Decreto 35/2005 CAM).',
- 'active', 'https://n8n-sevensisters-chatbot.9kpuqs.easypanel.host', '2026-02-01');
+CREATE TABLE ancora_crm.chatbot_schedule (
+    id SERIAL PRIMARY KEY,
+    instance_id INTEGER NOT NULL REFERENCES ancora_crm.chatbot_instances(id) ON DELETE CASCADE,
+    dia_semana INTEGER NOT NULL, -- 0=Monday, 6=Sunday
+    hora_apertura VARCHAR(5) DEFAULT '09:00',
+    hora_cierre VARCHAR(5) DEFAULT '18:00',
+    abierto BOOLEAN DEFAULT true,
+    UNIQUE(instance_id, dia_semana)
+);
 
--- CHILLY'S services
-INSERT INTO ancora_crm.client_services (client_id, service_id, monthly_price, setup_price, status, started_at) VALUES
-((SELECT id FROM ancora_crm.clients WHERE slug='chillys'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Chatbot WhatsApp'), 99.00, 250.00, 'active', '2026-03-05'),
-((SELECT id FROM ancora_crm.clients WHERE slug='chillys'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Sistema de Reservas'), 49.00, 150.00, 'active', '2026-03-05'),
-((SELECT id FROM ancora_crm.clients WHERE slug='chillys'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Gestión de Menús'), 39.00, 100.00, 'active', '2026-03-05'),
-((SELECT id FROM ancora_crm.clients WHERE slug='chillys'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Agente de Voz (VAPI)'), 89.00, 300.00, 'active', '2026-03-05'),
-((SELECT id FROM ancora_crm.clients WHERE slug='chillys'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Envío Masivo WhatsApp'), 49.00, 100.00, 'active', '2026-03-05');
+CREATE TABLE ancora_crm.chatbot_holidays (
+    id SERIAL PRIMARY KEY,
+    instance_id INTEGER NOT NULL REFERENCES ancora_crm.chatbot_instances(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL,
+    nombre VARCHAR(200),
+    UNIQUE(instance_id, fecha)
+);
 
--- SEVEN SISTERS services
-INSERT INTO ancora_crm.client_services (client_id, service_id, monthly_price, setup_price, status, started_at) VALUES
-((SELECT id FROM ancora_crm.clients WHERE slug='seven-sisters'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Chatbot WhatsApp'), 99.00, 250.00, 'active', '2026-02-01'),
-((SELECT id FROM ancora_crm.clients WHERE slug='seven-sisters'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Chatbot Instagram'), 79.00, 200.00, 'active', '2026-02-01'),
-((SELECT id FROM ancora_crm.clients WHERE slug='seven-sisters'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Sistema de Reservas'), 49.00, 150.00, 'active', '2026-02-01'),
-((SELECT id FROM ancora_crm.clients WHERE slug='seven-sisters'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Recordatorios Automáticos'), 29.00, 50.00, 'active', '2026-02-01'),
-((SELECT id FROM ancora_crm.clients WHERE slug='seven-sisters'), (SELECT id FROM ancora_crm.service_catalog WHERE name='Consentimientos Digitales'), 39.00, 150.00, 'active', '2026-02-01');
+CREATE TABLE ancora_crm.chatbot_prompts (
+    id SERIAL PRIMARY KEY,
+    instance_id INTEGER NOT NULL REFERENCES ancora_crm.chatbot_instances(id) ON DELETE CASCADE,
+    filename VARCHAR(100) NOT NULL, -- 'system.txt' for main prompt
+    content TEXT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(instance_id, filename)
+);
+
+CREATE TABLE ancora_crm.chatbot_dashboard_users (
+    id SERIAL PRIMARY KEY,
+    instance_id INTEGER NOT NULL REFERENCES ancora_crm.chatbot_instances(id) ON DELETE CASCADE,
+    username VARCHAR(100) NOT NULL,
+    password_hash VARCHAR(200) NOT NULL,
+    role VARCHAR(20) DEFAULT 'admin', -- only 'admin' for now
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(instance_id, username)
+);
+
+CREATE TABLE ancora_crm.chatbot_contacts (
+    id SERIAL PRIMARY KEY,
+    instance_id INTEGER NOT NULL REFERENCES ancora_crm.chatbot_instances(id) ON DELETE CASCADE,
+    phone VARCHAR(20) NOT NULL, -- WhatsApp number
+    name VARCHAR(200), -- NULL if unknown
+    email VARCHAR(200),
+    address TEXT,
+    notes TEXT,
+    first_seen TIMESTAMPTZ DEFAULT NOW(),
+    last_seen TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(instance_id, phone)
+);
+
+CREATE TABLE ancora_crm.chatbot_conversations (
+    id SERIAL PRIMARY KEY,
+    instance_id INTEGER NOT NULL REFERENCES ancora_crm.chatbot_instances(id) ON DELETE CASCADE,
+    contact_id INTEGER NOT NULL REFERENCES ancora_crm.chatbot_contacts(id) ON DELETE CASCADE,
+    role VARCHAR(10) NOT NULL, -- 'user' or 'model'
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_chatbot_conv_contact ON ancora_crm.chatbot_conversations(contact_id, created_at);
+CREATE INDEX idx_chatbot_conv_instance ON ancora_crm.chatbot_conversations(instance_id, created_at);
+
+-- Seed Data
+
+-- Service Catalog (only plugin-based services)
+INSERT INTO ancora_crm.service_catalog (name, description, default_monthly_price, default_setup_price, category, is_active) VALUES
+('Chatbot WhatsApp Básico', 'Chatbot básico con IA que responde dudas sobre un negocio por WhatsApp', 49.00, 149.00, 'chatbot_whatsapp_basic', true)
+ON CONFLICT DO NOTHING;

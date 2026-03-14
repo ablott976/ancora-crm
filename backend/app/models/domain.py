@@ -60,6 +60,11 @@ class ClientServiceBase(BaseModel):
 class ClientServiceCreate(ClientServiceBase):
     pass
 
+class ClientServiceCreateRequest(BaseModel):
+    service_id: int
+    monthly_price: Optional[float] = None
+    setup_price: Optional[float] = None
+
 class ClientServiceUpdate(BaseModel):
     monthly_price: Optional[float] = None
     setup_price: Optional[float] = None
@@ -110,6 +115,17 @@ class Invoice(InvoiceBase):
     id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+class ActivateChatbotRequest(BaseModel):
+    phone_number_id: str
+    display_phone_number: str
+    whatsapp_access_token: str
+    business_name: str
+    business_type: str = ""
+    address: str = ""
+    city: str = ""
+    system_prompt: str = ""
+    service_id: int
 
 class LoginRequest(BaseModel):
     username: str

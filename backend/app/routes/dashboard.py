@@ -7,13 +7,13 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 @router.get("/stats")
 async def get_dashboard_stats(db = Depends(get_db)):
     # Total Active Clients
-    active_clients = await db.fetchval("SELECT COUNT(*) FROM ancora_crm.clients WHERE status = 'active'")
+    active_clients = await db.fetchval("SELECT COUNT(*) FROM ancora_crm.clients WHERE status IN ('active', 'onboarding')")
     
     # MRR (Sum of active monthly services)
     mrr = await db.fetchval("""
         SELECT SUM(monthly_price) 
         FROM ancora_crm.client_services 
-        WHERE status = 'active'
+        WHERE status IN ('active', 'onboarding')
     """)
     mrr = mrr or 0.0
 
