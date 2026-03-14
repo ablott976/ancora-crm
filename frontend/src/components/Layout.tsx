@@ -1,11 +1,36 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Box, FileText, LogOut, Anchor } from 'lucide-react';
+import { useState } from 'react';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Anchor,
+  Bell,
+  Box,
+  Calendar,
+  CalendarCheck,
+  ChevronDown,
+  FileCheck,
+  FileText,
+  LayoutDashboard,
+  Lock,
+  LogOut,
+  Megaphone,
+  MessageCircle,
+  Mic,
+  Phone,
+  Shield,
+  UserCheck,
+  Users,
+  Utensils,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import clsx from 'clsx';
 
 export default function Layout() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPluginRoute = location.pathname.startsWith('/plugins');
+  const [pluginsOpen, setPluginsOpen] = useState(isPluginRoute);
 
   const handleLogout = async () => {
     await logout();
@@ -17,6 +42,22 @@ export default function Layout() {
     { to: '/clients', icon: Users, label: 'Clientes' },
     { to: '/services', icon: Box, label: 'Servicios' },
     { to: '/invoices', icon: FileText, label: 'Facturas' },
+  ];
+
+  const pluginItems = [
+    { to: '/plugins/closures', icon: Lock, label: 'Closures' },
+    { to: '/plugins/daily-menus', icon: UtensilsCrossed, label: 'DailyMenus' },
+    { to: '/plugins/broadcasts', icon: Megaphone, label: 'Broadcasts' },
+    { to: '/plugins/instagram-dm', icon: MessageCircle, label: 'InstagramDM' },
+    { to: '/plugins/advanced-crm', icon: UserCheck, label: 'AdvancedCRM' },
+    { to: '/plugins/audio-transcription', icon: Mic, label: 'AudioTranscription' },
+    { to: '/plugins/restaurant-bookings', icon: Utensils, label: 'RestaurantBookings' },
+    { to: '/plugins/owner-agent', icon: Shield, label: 'OwnerAgent' },
+    { to: '/plugins/consent-forms', icon: FileCheck, label: 'ConsentForms' },
+    { to: '/plugins/shift-view', icon: Calendar, label: 'ShiftView' },
+    { to: '/plugins/voice-agent', icon: Phone, label: 'VoiceAgent' },
+    { to: '/plugins/bookings', icon: CalendarCheck, label: 'Bookings' },
+    { to: '/plugins/reminders', icon: Bell, label: 'Reminders' },
   ];
 
   return (
@@ -45,6 +86,46 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
+
+          <div className="pt-3">
+            <button
+              type="button"
+              onClick={() => setPluginsOpen((current) => !current)}
+              className={clsx(
+                'flex w-full items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                isPluginRoute
+                  ? 'bg-brand-500/10 text-brand-500'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-50'
+              )}
+            >
+              <span className="flex items-center">
+                <Box className="mr-3 h-5 w-5" />
+                Plugins
+              </span>
+              <ChevronDown className={clsx('h-4 w-4 transition-transform', pluginsOpen && 'rotate-180')} />
+            </button>
+            {pluginsOpen ? (
+              <div className="mt-2 space-y-1 pl-3">
+                {pluginItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      clsx(
+                        'flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-brand-500/10 text-brand-500'
+                          : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-50'
+                      )
+                    }
+                  >
+                    <item.icon className="mr-3 h-4 w-4" />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </nav>
         <div className="p-4 border-t border-slate-800">
           <button
