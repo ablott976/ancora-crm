@@ -196,6 +196,11 @@ async def remove_client_service(client_id: int, service_id: int, db = Depends(ge
         await db.execute("DELETE FROM ancora_crm.chatbot_business_info WHERE instance_id = $1", inst_id)
         await db.execute("DELETE FROM ancora_crm.chatbot_dashboard_users WHERE instance_id = $1", inst_id)
         await db.execute("DELETE FROM ancora_crm.chatbot_instances WHERE id = $1", inst_id)
+        # Clear dashboard_url since the chatbot instance no longer exists
+        await db.execute(
+            "UPDATE ancora_crm.clients SET dashboard_url = NULL, updated_at = NOW() WHERE id = $1",
+            client_id
+        )
     # Then remove the client_service itself
     row = await db.fetchrow("DELETE FROM ancora_crm.client_services WHERE client_id = $1 AND service_id = $2 RETURNING id", client_id, service_id)
     if not row:
