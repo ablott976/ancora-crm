@@ -1,6 +1,7 @@
 """Broadcasts plugin - Campañas WhatsApp marketing."""
 from app.plugins.base import BasePlugin
 from app.plugins.broadcasts.routes import router as broadcasts_router
+from app.plugins.broadcasts.tools import BROADCAST_TOOLS, BROADCAST_TOOL_HANDLERS
 
 
 class BroadcastsPlugin(BasePlugin):
@@ -13,6 +14,12 @@ class BroadcastsPlugin(BasePlugin):
 
     def get_router(self):
         return broadcasts_router
+
+    def get_tools(self):
+        return BROADCAST_TOOLS
+
+    def get_tool_handlers(self):
+        return BROADCAST_TOOL_HANDLERS
 
     async def on_install(self, db, instance_id: int):
         await db.execute(SCHEMA_SQL)

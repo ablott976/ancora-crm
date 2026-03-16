@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Megaphone, Plus, ShieldBan } from 'lucide-react';
+import { Loader2, Megaphone, Plus, Send, ShieldBan } from 'lucide-react';
 import api from '../../api/client';
 import {
   Card,
+  dashboardPluginPath,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -16,7 +17,6 @@ import {
   formatError,
   inputClassName,
   parseTags,
-  pluginRoutePath,
   primaryButtonClassName,
   secondaryButtonClassName,
   textareaClassName,
@@ -29,6 +29,10 @@ type Campaign = {
   target_tags?: string[];
   scheduled_at?: string | null;
   status: string;
+  total_recipients?: number;
+  total_sent?: number;
+  total_delivered?: number;
+  total_failed?: number;
   created_at: string;
 };
 
@@ -54,14 +58,16 @@ export default function BroadcastsPage() {
   const [campaignForm, setCampaignForm] = useState(emptyCampaign);
   const [recipientForm, setRecipientForm] = useState(emptyRecipient);
   const [submitting, setSubmitting] = useState(false);
+  const [sendingCampaignId, setSendingCampaignId] = useState<number | null>(null);
+  const [sendResults, setSendResults] = useState<Record<number, string>>({});
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
       const [campaignRes, recipientRes] = await Promise.all([
-        api.get(pluginRoutePath('broadcasts/campaigns/10')),
-        api.get(pluginRoutePath('broadcasts/recipients/10')),
+        api.get(dashboardPluginPath('broadcasts', '/campaigns')),
+        api.get(dashboardPluginPath('broadcasts', '/recipients')),
       ]);
       setCampaigns(campaignRes.data);
       setRecipients(recipientRes.data);
@@ -80,8 +86,7 @@ export default function BroadcastsPage() {
     event.preventDefault();
     setSubmitting(true);
     try {
-      await api.post(pluginRoutePath('broadcasts/campaigns'), {
-        instance_id: 10,
+      await api.post(dashboardPluginPath('broadcasts', '/campaigns'), {
         name: campaignForm.name,
         message_template: campaignForm.message_template,
         target_tags: parseTags(campaignForm.target_tags),
@@ -101,8 +106,7 @@ export default function BroadcastsPage() {
     event.preventDefault();
     setSubmitting(true);
     try {
-      await api.post(pluginRoutePath('broadcasts/recipients'), {
-        instance_id: 10,
+      await api.post(dashboardPluginPath('broadcasts', '/recipients'), {
         phone: recipientForm.phone,
         name: recipientForm.name || null,
         tags: parseTags(recipientForm.tags),
@@ -120,10 +124,32 @@ export default function BroadcastsPage() {
 
   const optOut = async (phone: string) => {
     try {
-      await api.post(pluginRoutePath(`broadcasts/recipients/10/${encodeURIComponent(phone)}/opt-out`));
+      await api.post(dashboardPluginPath('broadcasts', `/recipients/${encodeURIComponent(phone)}/opt-out`));
       await fetchData();
     } catch (err) {
       setError(formatError(err));
+    }
+  };
+
+  const sendCampaign = async (campaignId: number) => {
+    setSendingCampaignId(campaignId);
+    setError(null);
+    try {
+      const response = await api.post(dashboardPluginPath('broadcasts', `/campaigns/${campaignId}/send`));
+      const result = response.data as {
+        total_recipients: number;
+        total_sent: number;
+        total_failed: number;
+      };
+      setSendResults((current) => ({
+        ...current,
+        [campaignId]: `Enviado a ${result.total_sent}/${result.total_recipients} contactos. Fallidos: ${result.total_failed}.`,
+      }));
+      await fetchData();
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setSendingCampaignId(null);
     }
   };
 
@@ -155,7 +181,7 @@ export default function BroadcastsPage() {
       {!loading && activeTab === 'campaigns' ? (
         <Card className="p-0">
           <div className="border-b border-slate-800 px-6 py-4">
-            <SectionTitle title="Campañas" subtitle="Borradores y envíos programados para la instancia 10." />
+            <SectionTitle title="Campañas" subtitle="Borradores y envíos programados para la instancia activa." />
           </div>
           {campaigns.length === 0 ? (
             <div className="p-6">
@@ -169,6 +195,8 @@ export default function BroadcastsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Etiquetas</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Programación</th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Estado</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Resultados</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-400">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 bg-slate-900">
@@ -188,6 +216,35 @@ export default function BroadcastsPage() {
                     <td className="px-6 py-4 text-sm text-slate-300">{campaign.target_tags?.join(', ') || 'Todas'}</td>
                     <td className="px-6 py-4 text-sm text-slate-300">{campaign.scheduled_at ? formatDateTime(campaign.scheduled_at) : 'Sin programar'}</td>
                     <td className="px-6 py-4 text-sm"><StatusBadge status={campaign.status} /></td>
+                    <td className="px-6 py-4 text-sm text-slate-300">
+                      <div>{campaign.total_sent ?? 0} enviados</div>
+                      <div className="text-slate-500">{campaign.total_failed ?? 0} fallidos</div>
+                      {sendResults[campaign.id] ? <div className="mt-1 text-xs text-slate-400">{sendResults[campaign.id]}</div> : null}
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm">
+                      {['draft', 'scheduled'].includes(campaign.status) ? (
+                        <button
+                          type="button"
+                          onClick={() => sendCampaign(campaign.id)}
+                          disabled={sendingCampaignId === campaign.id}
+                          className={secondaryButtonClassName}
+                        >
+                          {sendingCampaignId === campaign.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Enviando...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="mr-2 h-4 w-4" />
+                              Enviar
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-slate-500">Sin acciones</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
