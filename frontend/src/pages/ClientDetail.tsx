@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { ExternalLink, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import api from '../api/client';
 import { Client, ClientService, Invoice, ServiceCatalog } from '../types';
 
@@ -68,17 +68,6 @@ export default function ClientDetail() {
           <h1 className="text-3xl font-bold text-white">{client.name}</h1>
           <p className="text-slate-400 mt-1">{client.business_type} • {client.city}</p>
         </div>
-        {client.dashboard_url && (
-          <a
-            href={client.dashboard_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center px-4 py-2 border border-slate-700 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-800"
-          >
-            Dashboard Cliente
-            <ExternalLink className="ml-2 w-4 h-4" />
-          </a>
-        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

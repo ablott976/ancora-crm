@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Any, Dict
+from typing import Optional, Any, Dict
 from datetime import date, datetime
 
 class ClientBase(BaseModel):
@@ -13,7 +13,6 @@ class ClientBase(BaseModel):
     business_type: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = 'active'
-    dashboard_url: Optional[str] = None
     onboarding_date: Optional[date] = None
     offboarding_date: Optional[date] = None
 
@@ -115,17 +114,6 @@ class Invoice(InvoiceBase):
     id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-class ActivateChatbotRequest(BaseModel):
-    phone_number_id: str
-    display_phone_number: str
-    whatsapp_access_token: str
-    business_name: str
-    business_type: str = ""
-    address: str = ""
-    city: str = ""
-    system_prompt: str = ""
-    service_id: int
 
 class LoginRequest(BaseModel):
     username: str

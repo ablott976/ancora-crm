@@ -15,7 +15,6 @@ export interface Client {
   business_type?: string;
   notes?: string;
   status: 'active' | 'inactive' | 'suspended';
-  dashboard_url?: string;
   onboarding_date?: string;
   offboarding_date?: string;
   created_at: string;
