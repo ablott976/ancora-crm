@@ -1,76 +1,73 @@
-# Task: Complete Broadcasts Plugin
+# Task: Complete Restaurant Bookings Plugin
 
 ## Context
-ancora-crm is a multi-tenant SaaS CRM for WhatsApp chatbot clients. Each client has a `chatbot_instance` with its own WhatsApp credentials (access_token, phone_number_id) stored in `ancora_crm.chatbot_instances`.
+ancora-crm is a multi-tenant SaaS CRM. The restaurant_bookings plugin has basic tools for the chatbot but the dashboard CRUD is incomplete, and it's missing the availability logic and reservation state machine from the Chilly's reference.
 
-The broadcasts plugin currently has basic CRUD but is missing the actual sending logic. The reference implementation from Chilly's chatbot (in `reference/chillys_broadcasts.py`) has the complete working version for a single-tenant app. We need to adapt it for multi-tenant.
+## Reference
+- `reference/chillys_admin_routes.py` - Working admin routes with full reservation CRUD, confirm, cancel, noshow
+- `/tmp/chillys-chatbot/services/reservations.py` - State machine, reservation creation with validation
+- `/tmp/chillys-chatbot/services/availability.py` - Availability logic with zones/tables/slots
 
 ## What exists
-- Schema: `ancora_crm.plugin_broadcasts_campaigns`, `plugin_broadcasts_recipients`, `plugin_broadcasts_send_log` (see `__init__.py`)
-- CRUD routes in `backend/app/plugins/broadcasts/routes.py`
-- CRUD services in `backend/app/plugins/broadcasts/services.py`
-- WhatsApp sending util in `backend/app/services/chatbot_whatsapp.py` (send_message function)
-- Frontend page in `frontend/src/pages/plugins/BroadcastsPage.tsx`
+- Schema: zones, tables, reservations (see `__init__.py`)
+- 3 dashboard routes (list reservations, list zones, create zone)
+- 7 services functions (basic CRUD)
+- 5 chatbot tools
+- Frontend page with basic list + zone creation
 
 ## What's needed
 
-### 1. Backend: services.py - Add sending logic
-Add these functions to `backend/app/plugins/broadcasts/services.py`:
+### 1. Backend: services.py - Complete reservation logic
+Add/enhance:
+a) `create_reservation(db, instance_id, ...)` - Create reservation with validation (check zone capacity, no double-booking)
+b) `update_reservation(db, instance_id, reservation_id, **kwargs)` - Update reservation details
+c) `confirm_reservation(db, instance_id, reservation_id)` - Set status to 'confirmada'
+d) `cancel_reservation_dashboard(db, instance_id, reservation_id)` - Set status to 'cancelada', different from chatbot cancel (no WA notification)
+e) `mark_noshow(db, instance_id, reservation_id)` - Set status to 'noshow'
+f) `update_zone(db, instance_id, zone_id, **kwargs)` - Update zone details
+g) `delete_zone(db, instance_id, zone_id)` - Deactivate zone
+h) `create_table(db, instance_id, zone_id, table_number, seats)` - Create table in zone
+i) `list_tables(db, instance_id, zone_id)` - List tables
+j) `update_table(db, instance_id, table_id, **kwargs)` - Update table
+k) `delete_table(db, instance_id, table_id)` - Deactivate table
 
-a) `resolve_audience(db, instance_id, campaign)` - Resolve target contacts based on campaign config:
-   - `all`: all contacts with `opt_in_marketing=true` and no `opted_out_at`
-   - `tags`: contacts matching ANY of `target_tags` (recipients table has `tags` array field)
-   - Return list of dicts with `phone`, `name`
+State transitions: pending -> confirmada -> completada, pending -> cancelada, confirmada -> cancelada, confirmada -> noshow
 
-b) `send_campaign(db, instance_id, campaign_id)` - Execute a campaign:
-   - Validate campaign exists and status is 'draft' or 'scheduled'
-   - Set status to 'sending'
-   - Get instance's WA credentials from `ancora_crm.chatbot_instances` (access_token=whatsapp_access_token, phone_number_id)
-   - Resolve audience
-   - For each recipient: send WA message using `chatbot_whatsapp.send_message`, log in `send_log`, rate limit with asyncio.sleep(0.05)
-   - Update campaign totals (total_recipients, total_sent, total_delivered, total_failed)
-   - Set status to 'sent'
-   - Return summary dict
+### 2. Backend: routes.py - Full CRUD endpoints with correct auth
+Change to dashboard auth pattern (like bookings/closures plugins):
+- Remove self-prefix from router
+- Use `require_plugin("restaurant_bookings")` + `get_current_chatbot_user`
+- Add these endpoints under `/dashboard/{instance_id}/restaurant/`:
+  - GET /reservations - list (with date filter)
+  - POST /reservations - create
+  - PUT /reservations/{id} - update
+  - POST /reservations/{id}/confirm
+  - POST /reservations/{id}/cancel
+  - POST /reservations/{id}/noshow
+  - GET /zones - list
+  - POST /zones - create
+  - PUT /zones/{id} - update
+  - DELETE /zones/{id} - deactivate
+  - GET /zones/{zone_id}/tables - list tables
+  - POST /zones/{zone_id}/tables - create table
+  - PUT /tables/{id} - update table
+  - DELETE /tables/{id} - deactivate table
 
-c) `check_scheduled_campaigns(db)` - Find campaigns where status='scheduled' and scheduled_at <= NOW(), send each one. This will be called by an external scheduler.
+### 3. Frontend: RestaurantBookingsPage.tsx - Complete dashboard
+Add:
+- Reservation creation form (name, phone, date, time, party_size, zone, notes, allergies)
+- Confirm/Cancel/NoShow action buttons on each reservation
+- Tables management within zones (expandable zone -> tables list)
+- Update API paths to use `dashboardPluginPath('restaurant', ...)`
 
-### 2. Backend: routes.py - Add send endpoint
-Add `POST /campaigns/{instance_id}/{campaign_id}/send` endpoint that calls `send_campaign`.
-
-### 3. Frontend: BroadcastsPage.tsx - Add send button
-Add a "Send" button for draft/scheduled campaigns that calls the send endpoint. Show sending state and results.
-
-### 4. Auth fix
-Change routes.py to use the same pattern as closures/bookings:
-- Import `get_current_chatbot_user` from `app.services.chatbot_auth` instead of `get_current_user` from `app.routes.auth`
-- Use `require_plugin("broadcasts")` for instance_id validation
-- Change route paths from `/campaigns/{instance_id}` to `/dashboard/{instance_id}/broadcasts/campaigns` (matching the bookings pattern)
-- Update frontend to use `dashboardPluginPath('broadcasts/campaigns')` instead of `pluginRoutePath('broadcasts/campaigns/10')`
-
-### 5. Add chatbot tools
-Create `backend/app/plugins/broadcasts/tools.py` with Gemini function calling tools so the chatbot can:
-- `check_broadcast_status`: Check if there are any active/scheduled campaigns
-- `get_opt_in_count`: Return count of opted-in recipients
-
-Register tools in `__init__.py`.
-
-## Important constraints
+### 4. Important constraints
 - Multi-tenant: always filter by instance_id
-- Get WA credentials from `ancora_crm.chatbot_instances` table (columns: `whatsapp_access_token`, `phone_number_id`)
-- Use `app.services.chatbot_whatsapp.send_message(to, body, access_token, phone_number_id)` for sending
-- Recipients phone format should include country code (e.g., "34612345678")
-- Rate limit: asyncio.sleep(0.05) between sends (~20 msgs/sec)
-- Don't break existing CRUD functionality
-- Follow existing code patterns in the project (asyncpg via db dependency, no raw pool)
+- Follow the dashboard auth pattern from bookings plugin (require_plugin + get_current_chatbot_user)
+- Don't break existing chatbot tools
+- Use existing schema, don't add new tables
+- State transitions should be validated
 
 ## Files to modify
-- `backend/app/plugins/broadcasts/services.py` - Add send logic
-- `backend/app/plugins/broadcasts/routes.py` - Add send endpoint + fix auth pattern
-- `backend/app/plugins/broadcasts/__init__.py` - Register tools
-- `backend/app/plugins/broadcasts/tools.py` - NEW: chatbot tools
-- `frontend/src/pages/plugins/BroadcastsPage.tsx` - Add send button + fix API paths
-
-## Reference files
-- `reference/chillys_broadcasts.py` - Working single-tenant implementation
-- `backend/app/plugins/bookings/routes.py` - Example of correct auth pattern
-- `backend/app/services/chatbot_whatsapp.py` - WA send function
+- `backend/app/plugins/restaurant_bookings/services.py`
+- `backend/app/plugins/restaurant_bookings/routes.py`
+- `frontend/src/pages/plugins/RestaurantBookingsPage.tsx`
